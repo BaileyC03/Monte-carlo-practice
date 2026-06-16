@@ -1,0 +1,77 @@
+Project: Monte Carlo Portfolio Risk Engine — C++ → WebSocket → Python Dashboard
+
+What's been built so far:
+
+A C++ Monte Carlo simulation engine in montecarlo.hpp with a montecarlo.cpp entry point. The engine simulates one-day Value at Risk (VaR) on a two-stock portfolio using Geometric Brownian Motion with correlated asset shocks via Cholesky decomposition. It runs across 10 threads using std::thread, each writing into a separate slice of a shared P&L vector. After all threads join, the full P&L distribution is sorted and VaR (5th percentile), CVaR (mean of worst 5%), and mean P&L are computed and printed.
+
+Current output looks like:
+Cholesky verification passed!
+Starting thread 0... (x10)
+VaR: -4193.77
+CVaR: -5378.06
+Mean P&L: 434.411
+
+What needs doing next, in order:
+
+1. Timing benchmark (5 mins) — wrap engine.run() in std::chrono::high_resolution_clock timing in main.cpp, run with 10 threads, then 1 thread, then 8 threads, print the wall time each run to demonstrate HPC speedup.
+
+2. WebSocket server in C++ — integrate uWebSockets (single header, easy cmake dep). After each run() call, serialise the results struct to a JSON string by hand using std::ostringstream (no JSON library needed). Broadcast that JSON to all connected clients every 500ms in a loop. The JSON shape should be:
+{
+  "var95": -4193.77,
+  "cvar95": -5378.06,
+  "mean": 434.41,
+  "timestamp": 1718123456
+}
+
+3. Python dashboard — once the WebSocket server is broadcasting, build a Python client with asyncio and the websockets library that receives frames, appends rows to a pandas.DataFrame, computes rolling stats with NumPy, runs a scipy.optimize.minimize efficient frontier solver for optimal portfolio weights, and renders a 4-panel live Matplotlib dashboard using FuncAnimation with a Seaborn heatmap panel for the correlation matrix.
+
+4. Real stock data — use yfinance to pull 2 years of historical price data for 5 real tickers (e.g. AAPL, MSFT, GOOGL, NVDA, AMZN), compute annualised mu, sigma, and covariance matrix in Python using NumPy/Pandas, write them to a JSON config file, and have the C++ engine read that file on startup instead of using the hardcoded loadTestCase().
+
+Tech stack:
+- C++17, std::thread, std::mt19937, templates, uWebSockets
+- Python: asyncio, websockets, numpy, pandas, matplotlib, seaborn, scipy, yfinance
+- Protocol: hand-rolled JSON over WebSocket
+
+Key design decisions already made:
+- sigma is not stored on the stock struct — it is derived from sqrt(covariance[i][i])
+- Cholesky factor is computed once upfront on the Portfolio object before simulation
+- Each thread has its own RNG seeded with std::random_device{}() + threadIndex
+- Template parameter T on monteCarloEngine<T> controls scalar precision (use double)
+- dt = 1.0/252.0 hardcoded for one trading day horizon
+
+Class structure:
+
+class stock {
+public:
+    std::string name;
+    double stockPrice;
+    double mu;
+};
+
+class Portfolio {
+public:
+    std::vector<stock> stocks;
+    std::vector<double> weights;
+    std::vector<std::vector<double>> covariance;
+    std::vector<std::vector<double>> choleskyFactor;
+    double totalValue;
+    void computeCholeskyFactor();
+    bool verifyCholesky();
+    void loadTestCase(); // to be replaced by JSON config reader
+};
+
+struct results {
+    std::vector<double> PnL;
+    double VaR;
+    double CVaR;
+    double mean;
+};
+
+template <typename T>
+class monteCarloEngine {
+public:
+    results run(Portfolio& portfolio, int simulationNumber);
+    void simulateBatch(int start, int end, std::vector<double>& pnlOut, Portfolio& portfolio, int index);
+};
+
+Teaching approach used so far: hints and explanations only, no full code blocks unless explicitly asked. The student has no maths background so all concepts need plain English explanations before any implementation. Continue this approach.
