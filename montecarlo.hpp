@@ -6,8 +6,12 @@
 #include <cmath>
 #include <random>
 #include <thread>
+#include "third_party/json.hpp"
 #include <algorithm>
 #include <chrono>
+#include <fstream>
+
+using json = nlohmann::json;
 
 class stock
 {
@@ -79,19 +83,22 @@ public:
         return true;
     }
 
-    void loadTestCase() {
-        stock s1; s1.name = "AAPL"; s1.stockPrice = 100.0; s1.mu = 0.08;
-        stock s2; s2.name = "MSFT"; s2.stockPrice = 200.0; s2.mu = 0.10;
-        stocks.push_back(s1);
-        stocks.push_back(s2);
+    void loadJSON() {
+       std::ifstream input_file("data.json");
+       json j;
+       input_file >> j;
 
-        covariance = {
-            {0.04, 0.02},
-            {0.02, 0.03}
-        };
+       for (const auto& stockJson : j["stocks"]) {
+           stock s;
+           s.name = stockJson["name"];
+           s.stockPrice = stockJson["stockPrice"];
+           s.mu = stockJson["mu"];
+           stocks.push_back(s);
+       }
 
-        weights = {0.5, 0.5};
-        totalValue = 10000.0;
+       covariance = j["covariance"].get<std::vector<std::vector<double>>>();
+       weights = j["weights"].get<std::vector<double>>();
+       totalValue = j["totalValue"];
     }
 };
 

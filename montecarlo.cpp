@@ -6,12 +6,11 @@
 #include <sstream>
 #include <ctime>
 #include <App.h>
-
 struct PerSocketData {};
 
 int main(){
     auto portfolio = std::make_unique<Portfolio>();
-    portfolio->loadTestCase();
+    portfolio->loadJSON();
     portfolio->computeCholeskyFactor();
     portfolio->verifyCholesky();
 
